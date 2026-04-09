@@ -4,3 +4,4 @@ scikit-learn==1.4.0
 pickle-mixin
 xgboost 
 joblib
+pillow==10.3.0
