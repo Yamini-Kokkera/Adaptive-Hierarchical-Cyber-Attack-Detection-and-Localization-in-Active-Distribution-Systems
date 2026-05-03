@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import os
 import base64
+import plotly.express as px
 
 # -------------------- PAGE CONFIG --------------------
 st.set_page_config(
@@ -10,6 +11,32 @@ st.set_page_config(
     page_icon="⚡",
     layout="wide"
 )
+
+# -------------------- PROFESSIONAL BACKGROUND --------------------
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(135deg, #0f172a, #1e293b, #334155);
+    color: white;
+}
+h1, h2, h3, h4 {
+    color: #ffffff;
+}
+[data-testid="stMetricValue"] {
+    color: #00ffcc;
+}
+div.stButton > button {
+    background-color: #2563eb;
+    color: white;
+    border-radius: 10px;
+    height: 3em;
+    font-size: 18px;
+}
+div.stButton > button:hover {
+    background-color: #1d4ed8;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # -------------------- TITLE --------------------
 st.title("⚡ Power Grid Attack Detection System")
@@ -24,90 +51,179 @@ scaler = joblib.load("scaler.pkl")
 st.sidebar.title("⚙️ Settings")
 st.sidebar.info("Enter bus parameters and detect anomalies")
 
+# -------------------- RESET FUNCTION --------------------
+def reset_values():
+    keys = [
+        "b2_vm", "b2_p", "b2_q",
+        "b3_vm", "b3_p", "b3_q",
+        "b4_vm", "b4_p", "b4_q",
+        "b5_vm", "b5_p", "b5_q"
+    ]
+    for key in keys:
+        st.session_state[key] = 0.0
+
 # -------------------- INPUT SECTION --------------------
 st.subheader("📥 Enter Bus Parameters")
+
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    b2_vm = st.number_input("Bus 2 vm_pu", key="b2_vm")
-    b2_p = st.number_input("Bus 2 p_mw", key="b2_p")
-    b2_q = st.number_input("Bus 2 q_mvar", key="b2_q")
+    b2_vm = st.number_input("Bus 2 vm_pu", value=0.0, key="b2_vm")
+    b2_p = st.number_input("Bus 2 p_mw", value=0.0, key="b2_p")
+    b2_q = st.number_input("Bus 2 q_mvar", value=0.0, key="b2_q")
 
 with col2:
-    b3_vm = st.number_input("Bus 3 vm_pu", key="b3_vm")
-    b3_p = st.number_input("Bus 3 p_mw", key="b3_p")
-    b3_q = st.number_input("Bus 3 q_mvar", key="b3_q")
+    b3_vm = st.number_input("Bus 3 vm_pu", value=0.0, key="b3_vm")
+    b3_p = st.number_input("Bus 3 p_mw", value=0.0, key="b3_p")
+    b3_q = st.number_input("Bus 3 q_mvar", value=0.0, key="b3_q")
 
 with col3:
-    b4_vm = st.number_input("Bus 4 vm_pu", key="b4_vm")
-    b4_p = st.number_input("Bus 4 p_mw", key="b4_p")
-    b4_q = st.number_input("Bus 4 q_mvar", key="b4_q")
+    b4_vm = st.number_input("Bus 4 vm_pu", value=0.0, key="b4_vm")
+    b4_p = st.number_input("Bus 4 p_mw", value=0.0, key="b4_p")
+    b4_q = st.number_input("Bus 4 q_mvar", value=0.0, key="b4_q")
 
 with col4:
-    b5_vm = st.number_input("Bus 5 vm_pu", key="b5_vm")
-    b5_p = st.number_input("Bus 5 p_mw", key="b5_p")
-    b5_q = st.number_input("Bus 5 q_mvar", key="b5_q")
+    b5_vm = st.number_input("Bus 5 vm_pu", value=0.0, key="b5_vm")
+    b5_p = st.number_input("Bus 5 p_mw", value=0.0, key="b5_p")
+    b5_q = st.number_input("Bus 5 q_mvar", value=0.0, key="b5_q")
+
+# -------------------- BUTTONS --------------------
+st.markdown("---")
+
+btn1, btn2 = st.columns(2)
+
+with btn1:
+    analyze = st.button("🚀 Analyze Grid", use_container_width=True)
+
+with btn2:
+    reset = st.button("🔄 Reset", use_container_width=True)
+
+if reset:
+    reset_values()
+    st.rerun()
 
 # -------------------- PREDICTION FUNCTION --------------------
-def predict_attack(vm, p, q, bus_id):
-    if vm <= 0 or p <= 0 or q <= 0 or bus_id <= 0:
-        return "ATTACKED 🚨"
-    elif vm >= 1 and p >= 1 and q >= 1 and bus_id >= 1:
-        return "Normal ✅"
+def predict_attack(vm, p, q):
+    if vm <= 0 or p <= 0 or q <= 0:
+        return "ATTACKED"
+    elif vm >= 1 and p >= 1 and q >= 1:
+        return "Normal"
     else:
-        return "⚠️ Warning"
+        return "Warning"
 
-# -------------------- ANALYZE BUTTON --------------------
-if st.button("🚀 Analyze Grid"):
-    buses = [
-        ("Bus 2", b2_vm, b2_p, b2_q, 2),
-        ("Bus 3", b3_vm, b3_p, b3_q, 3),
-        ("Bus 4", b4_vm, b4_p, b4_q, 4),
-        ("Bus 5", b5_vm, b5_p, b5_q, 5),
-    ]
+# -------------------- ANALYZE --------------------
+if analyze:
 
-    attack_detected = False
+    buses = {
+        "Bus 2": [b2_vm, b2_p, b2_q],
+        "Bus 3": [b3_vm, b3_p, b3_q],
+        "Bus 4": [b4_vm, b4_p, b4_q],
+        "Bus 5": [b5_vm, b5_p, b5_q]
+    }
+
+    results = []
     attack_count = 0
 
     st.subheader("🚨 Detection Results")
-    for name, vm, p, q, bid in buses:
-        result = predict_attack(vm, p, q, bid)
-        if "ATTACKED" in result:
-            st.error(f"🔴 {name}: {result}")
-            attack_detected = True
+
+    for bus, values in buses.items():
+
+        vm, p, q = values
+        status = predict_attack(vm, p, q)
+
+        results.append([bus, vm, p, q, status])
+
+        if status == "ATTACKED":
+            st.error(f"🔴 {bus}: ATTACKED 🚨")
             attack_count += 1
-        elif "Normal" in result:
-            st.success(f"🟢 {name}: {result}")
+
+        elif status == "Normal":
+            st.success(f"🟢 {bus}: Normal ✅")
+
         else:
-            st.warning(f"🟡 {name}: {result}")
+            st.warning(f"🟡 {bus}: Warning")
 
-    # -------------------- AUTOMATIC SIREN --------------------
-    if attack_detected:
-        st.warning("⚠️ Grid is under potential attack!")
+    # -------------------- DATAFRAME --------------------
+    df = pd.DataFrame(results, columns=["Bus", "Voltage", "Power MW", "Reactive Power", "Status"])
 
-        # -------------------- play MP3 automatically --------------------
-        audio_file_name = "siren.mp3"  # exact name
-        audio_path = os.path.join(os.path.dirname(__file__), audio_file_name)
+    st.markdown("---")
+    st.subheader("📊 Grid Data Table")
+    st.dataframe(df, use_container_width=True)
+
+    # -------------------- BAR GRAPH --------------------
+    st.subheader("📈 Bus Power Analysis")
+
+    fig = px.bar(
+        df,
+        x="Bus",
+        y=["Power MW", "Reactive Power"],
+        barmode="group",
+        title="Bus Power Comparison"
+    )
+
+    fig.update_layout(
+        plot_bgcolor="#0f172a",
+        paper_bgcolor="#0f172a",
+        font_color="white"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # -------------------- PIE CHART --------------------
+    st.subheader("📌 Attack Summary")
+
+    pie_df = pd.DataFrame({
+        "Status": ["Attacked", "Safe"],
+        "Count": [attack_count, 4 - attack_count]
+    })
+
+    pie = px.pie(
+        pie_df,
+        names="Status",
+        values="Count",
+        title="Grid Security Status"
+    )
+
+    pie.update_layout(
+        paper_bgcolor="#0f172a",
+        font_color="white"
+    )
+
+    st.plotly_chart(pie, use_container_width=True)
+
+    # -------------------- ALERT SOUND --------------------
+    if attack_count > 0:
+
+        st.warning("⚠️ Grid is under potential cyber attack!")
+
+        audio_path = "siren.mp3"
 
         if os.path.exists(audio_path):
-            # encode to base64
-            audio_bytes = open("siren.mp3", "rb").read()
-            b64_audio = base64.b64encode(audio_bytes).decode()
+            with open(audio_path, "rb") as f:
+                audio_bytes = f.read()
+
+            b64 = base64.b64encode(audio_bytes).decode()
+
             st.markdown(
                 f"""
                 <audio autoplay>
-                    <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
+                    <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
                 </audio>
                 """,
                 unsafe_allow_html=True
             )
-        else:
-            st.error(f"Audio file not found: {audio_path}")
 
     else:
-        st.success("✅ Grid is operating normally")
+        st.success("✅ Grid is operating normally.")
 
-    # -------------------- SUMMARY --------------------
-    st.subheader("📌 Summary")
-    st.metric("Total Buses", 4)
-    st.metric("Attacked Buses", attack_count)
+    # -------------------- METRICS --------------------
+    st.markdown("---")
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        st.metric("Total Buses", 4)
+
+    with c2:
+        st.metric("Attacked Buses", attack_count)
+
